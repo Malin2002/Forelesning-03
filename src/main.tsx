@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { useGeographic } from "ol/proj";
 import { Fill, Stroke, Style, Text } from "ol/style";
@@ -11,6 +11,11 @@ import { OSM } from "ol/source";
 import { Feature } from "ol";
 import Geometry from "ol/geom/Geometry";
 import { FeatureLike } from "ol/Feature";
+import { SchoolLayerCheckbox } from "./modules/layers/schoolLayerCheckbox";
+import { Layer } from "ol/layer";
+
+import "ol/ol.css";
+import "./application.css";
 
 useGeographic();
 
@@ -52,7 +57,7 @@ let countyLayer = new VectorLayer({
   }),
 });
 
-const map = new Map({
+/*const map = new Map({
   layers: [
     new TileLayer({ source: new OSM() }),
     municipalityLayer,
@@ -65,10 +70,18 @@ const map = new Map({
     }),
   ],
   view: new View({ center: [10.7, 59.9], zoom: 11 }),
-});
+});*/
+
+const view = new View({ center: [10.7, 59.9], zoom: 11 });
+const map = new Map({ view });
 
 function Application() {
   const mapRef = useRef<HTMLDivElement | null>(null);
+  const [layers, setLayers] = useState<Layer[]>([
+    new TileLayer({ source: new OSM() }),
+    municipalityLayer,
+    countyLayer,
+  ]);
   const activeFeatures = useRef<Feature<Geometry>[]>([]);
 
   function handlePointerMove(event: MapBrowserEvent<MouseEvent>) {
@@ -80,31 +93,40 @@ function Application() {
         .getSource()
         ?.getFeaturesAtCoordinate(event.coordinate) || [];
     for (const feature of focusedFeatures) {
-      feature.setStyle(focusedStyle);
+      feature.setStyle(focusedStyle(feature));
     }
     activeFeatures.current = focusedFeatures || [];
   }
 
   useEffect(() => {
-    map.setTarget(mapRef.current as HTMLDivElement);
+    map.setTarget(mapRef.current!);
+    map.setLayers(layers);
+    map.on("pointermove", handlePointerMove);
+  }, [layers]);
 
+  function handleClick() {
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const { longitude, latitude } = pos.coords;
-        map.getView().animate({
+      ({ coords: { latitude, longitude } }) => {
+        view.animate({
           center: [longitude, latitude],
           zoom: 12,
+          duration: 500,
         });
       },
-      (error) => {
-        alert(error.message);
-      },
     );
+  }
 
-    map.on("pointermove", handlePointerMove);
-  }, []);
-
-  return <div ref={mapRef}></div>;
+  return (
+    <>
+      <nav>
+        <button onClick={handleClick}>Center on me</button>
+        <SchoolLayerCheckbox setLayers={setLayers} map={map} />
+      </nav>
+      <main>
+        <div ref={mapRef}></div>
+      </main>
+    </>
+  );
 }
 
 createRoot(document.getElementById("root")!).render(<Application />);
